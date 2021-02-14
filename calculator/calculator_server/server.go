@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"net"
 
@@ -22,7 +23,7 @@ func (*server) Sum(ctx context.Context, req *calculatorpb.SumRequest) (*calculat
 }
 
 func (*server) PrimeNumberDecomposition(req *calculatorpb.PrimeNumberDecompositionRequest, stream calculatorpb.CalculatorService_PrimeNumberDecompositionServer) error {
-	number:= req.GetNumber()
+	number := req.GetNumber()
 	divisor := int64(2)
 
 	for number > 1 {
@@ -30,13 +31,35 @@ func (*server) PrimeNumberDecomposition(req *calculatorpb.PrimeNumberDecompositi
 			stream.Send(&calculatorpb.PrimeNumberDecompositionResponse{
 				PrimeFactor: divisor,
 			})
-			number = number/divisor
+			number = number / divisor
 		} else {
 			divisor++
 		}
 	}
-	
+
 	return nil
+}
+
+func (*server) ComputeAverage(stream calculatorpb.CalculatorService_ComputeAverageServer) error {
+	sum := int32(0)
+	count := 0
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			average := float64(sum) / float64(count)
+			return stream.SendAndClose(&calculatorpb.ComputeAverageResponse{
+				Average: average,
+			})
+		}
+
+		if err != nil {
+			log.Fatalf("Error while reading client stream: %v", err)
+		}
+
+		sum += req.GetNumber()
+		count++
+	}
 }
 
 func main() {
